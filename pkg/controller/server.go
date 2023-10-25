@@ -13,7 +13,7 @@ import (
 var prefixTrie *Trie
 
 // Configuration for the prefixes file path.
-const prefixesFilePath = "prefixes.txt"
+const prefixesFilePath = "../../prefixes.txt"
 
 func init() {
 	// Initialize the prefixTrie and read prefixes from the file
