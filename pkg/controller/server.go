@@ -5,21 +5,38 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
-	"github.com/gorilla/mux" // Import the gorilla/mux package
+	"github.com/gorilla/mux"
 )
 
 var prefixTrie *Trie
 
 // Configuration for the prefixes file path.
-const prefixesFilePath = "../../prefixes.txt"
+// const prefixesFilePath = "../../prefixes.txt"
 
 func init() {
 	// Initialize the prefixTrie and read prefixes from the file
 	prefixTrie = NewTrie()
 
-	file, err := os.Open(prefixesFilePath)
+	// Get the current working directory.
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	// Create a new file path using the current working directory and the file name "myfile.txt".
+	filePath := filepath.Join(cwd, "../prefixes.txt")
+
+	// Check if the file exists.
+	if _, err := os.Stat(filePath); err != nil {
+		// File does not exist.
+		fmt.Println("File does not exist.")
+		return
+	}
+
+	file, err := os.Open(filePath)
 	if err != nil {
 		fmt.Println("Error opening prefixes file:", err)
 		return
@@ -42,11 +59,24 @@ func HandlePrefixMatch(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	input := vars["input"]
 
+	// Check if the matching prefix is in the cache
+	cache := GetCache()
+	cachedPrefix, ok := cache.Get(input)
+	if ok {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(cachedPrefix.(string)))
+		return
+	}
+
+	// Calculate the matching prefix
 	matchingPrefix := prefixTrie.FindLongestPrefix(input)
 	if matchingPrefix == "" {
 		http.Error(w, "No matching prefix found", http.StatusNotFound)
 		return
 	}
+
+	// Cache the matching prefix
+	cache.Set(input, matchingPrefix)
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(matchingPrefix))
