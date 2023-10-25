@@ -27,7 +27,7 @@ func init() {
 	}
 
 	// Create a new file path using the current working directory and the file name "myfile.txt".
-	filePath := filepath.Join(cwd, "../prefixes.txt")
+	filePath := filepath.Join(cwd, "../testfile.txt")
 
 	// Check if the file exists.
 	if _, err := os.Stat(filePath); err != nil {
@@ -68,18 +68,41 @@ func HandlePrefixMatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Calculate the matching prefix
-	matchingPrefix := prefixTrie.FindLongestPrefix(input)
-	if matchingPrefix == "" {
-		http.Error(w, "No matching prefix found", http.StatusNotFound)
-		return
-	}
+	results := make(chan string)
+	defer close(results)
+
+	go func(results chan<- string) {
+		// Calculate the matching prefix
+		matchingPrefix := prefixTrie.FindLongestPrefix(input)
+		if matchingPrefix == "" {
+			results <- "No matching prefix found"
+		} else {
+			results <- matchingPrefix
+		}
+	}(results)
+
+	// Retrieve the matching prefix from the goroutine
+	matchingPrefix := <-results
+
+	// // Calculate the matching prefix
+	// matchingPrefix := prefixTrie.FindLongestPrefix(input)
+	// if matchingPrefix == "" {
+	// 	http.Error(w, "No matching prefix found", http.StatusNotFound)
+	// 	return
+	// }
 
 	// Cache the matching prefix
 	cache.Set(input, matchingPrefix)
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(matchingPrefix))
+	// w.WriteHeader(http.StatusOK)
+	// w.Write([]byte(matchingPrefix))
+
+	if matchingPrefix == "No matching prefix found" || matchingPrefix == "" {
+		http.Error(w, "No matching prefix found", http.StatusNotFound)
+	} else {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(matchingPrefix))
+	}
 }
 
 // StartServer starts the HTTP server on the specified port.

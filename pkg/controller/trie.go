@@ -1,22 +1,25 @@
 package controller
 
+import "sync"
+
 type TrieNode struct {
 	children map[rune]*TrieNode
 	isEnd    bool
 }
 
-// Trie represents a prefix tree.
 type Trie struct {
 	root *TrieNode
+	mu   sync.RWMutex // Mutex for thread-safe access
 }
 
-// NewTrie creates a new Trie.
 func NewTrie() *Trie {
 	return &Trie{root: &TrieNode{children: make(map[rune]*TrieNode)}}
 }
 
-// Insert inserts a prefix into the Trie.
 func (t *Trie) Insert(word string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	node := t.root
 	for _, char := range word {
 		if _, exists := node.children[char]; !exists {
@@ -27,8 +30,10 @@ func (t *Trie) Insert(word string) {
 	node.isEnd = true
 }
 
-// FindLongestPrefix finds the longest matching prefix in the Trie for the input.
 func (t *Trie) FindLongestPrefix(input string) string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
 	node := t.root
 	longestPrefix := ""
 	for _, char := range input {
