@@ -2,23 +2,24 @@ package app
 
 import (
 	"fmt"
+	"net/http"
 
-	cache "github.com/yuvrajsingh79/matching-prefixes/pkg/controller"
+	"github.com/gorilla/mux" // Import the gorilla/mux package
+	"github.com/yuvrajsingh79/matching-prefixes/pkg/controller"
 )
 
+// Run starts the Matching-Prefixes application.
 func Run() {
-	// // Initialize configurations
-	// config.Load()
-
-	// // Initialize cache
-	cache.Init()
-
-	// // Initialize and start the server
-	// router := server.Init()
-
-	port := ":8080"
+	port := "8080" // Set your desired port here
 	fmt.Printf("Server is running on port %s\n", port)
-	// if err := http.ListenAndServe(port, router); err != nil {
-	// 	log.Fatalf("Server failed to start: %v", err)
-	// }
+
+	// Initialize the cache
+	controller.Init()
+
+	router := mux.NewRouter()
+	router.HandleFunc("/prefix-match/{input}", controller.HandlePrefixMatch)
+
+	if err := http.ListenAndServe(":"+port, router); err != nil {
+		fmt.Printf("Server failed to start: %v\n", err)
+	}
 }
