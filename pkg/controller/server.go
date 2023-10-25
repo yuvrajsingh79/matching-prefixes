@@ -12,7 +12,9 @@ import (
 )
 
 var prefixTrie *Trie
-var cache *Cache
+
+// Configuration for the prefixes file path.
+// const prefixesFilePath = "../../prefixes.txt"
 
 func init() {
 	// Initialize the prefixTrie and read prefixes from the file
@@ -24,7 +26,7 @@ func init() {
 		panic(err)
 	}
 
-	// Create a new file path using the current working directory and the file name "prefixes.txt".
+	// Create a new file path using the current working directory and the file name "myfile.txt".
 	filePath := filepath.Join(cwd, "../testfile.txt")
 
 	// Check if the file exists.
@@ -53,17 +55,49 @@ func init() {
 }
 
 // HandlePrefixMatch is an HTTP handler that matches the longest prefix for a given input.
-func HandlePrefixMatch(w http.ResponseWriter, r *http.Request, results chan string) {
+func HandlePrefixMatch(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	input := vars["input"]
 
-	// Calculate the matching prefix
-	matchingPrefix := prefixTrie.FindLongestPrefix(input)
+	// Check if the matching prefix is in the cache
+	cache := GetCache()
+	cachedPrefix, ok := cache.Get(input)
+	if ok {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(cachedPrefix.(string)))
+		return
+	}
 
-	// Send the matching prefix to the results channel
-	results <- matchingPrefix
+	results := make(chan string)
+	defer close(results)
 
-	if matchingPrefix == "" {
+	go func(results chan<- string) {
+		// Calculate the matching prefix
+		matchingPrefix := prefixTrie.FindLongestPrefix(input)
+		if matchingPrefix == "" {
+			results <- "No matching prefix found"
+		} else {
+			results <- matchingPrefix
+		}
+	}(results)
+
+	// Retrieve the matching prefix from the goroutine
+	matchingPrefix := <-results
+
+	// // Calculate the matching prefix
+	// matchingPrefix := prefixTrie.FindLongestPrefix(input)
+	// if matchingPrefix == "" {
+	// 	http.Error(w, "No matching prefix found", http.StatusNotFound)
+	// 	return
+	// }
+
+	// Cache the matching prefix
+	cache.Set(input, matchingPrefix)
+
+	// w.WriteHeader(http.StatusOK)
+	// w.Write([]byte(matchingPrefix))
+
+	if matchingPrefix == "No matching prefix found" || matchingPrefix == "" {
 		http.Error(w, "No matching prefix found", http.StatusNotFound)
 	} else {
 		w.WriteHeader(http.StatusOK)
@@ -72,27 +106,10 @@ func HandlePrefixMatch(w http.ResponseWriter, r *http.Request, results chan stri
 }
 
 // StartServer starts the HTTP server on the specified port.
-func StartServer(port string, c *Cache) error {
+func StartServer(port string) error {
 	router := mux.NewRouter()
-	results := make(chan string)
-
-	cache = c // Initialize the cache
-
-	router.HandleFunc("/prefix-match/{input}", func(w http.ResponseWriter, r *http.Request) {
-		go HandlePrefixMatch(w, r, results)
-	})
+	router.HandleFunc("/prefix-match/{input}", HandlePrefixMatch)
 
 	addr := fmt.Sprintf(":%s", port)
-
-	go func() {
-		// This goroutine listens for results on the channel and caches the matching prefixes.
-		for result := range results {
-			if result != "No matching prefix found" {
-				// Cache the matching prefix
-				cache.Set(result, result)
-			}
-		}
-	}()
-
 	return http.ListenAndServe(addr, router)
 }
